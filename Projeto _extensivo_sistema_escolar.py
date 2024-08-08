@@ -2,9 +2,10 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType
 
-# Iniciar a sessão Spark
+# Iniciar a sessão Spark com configuração para HDFS
 spark = SparkSession.builder \
     .appName("Sistema de Gerenciamento de Alunos") \
+    .config("spark.hadoop.fs.defaultFS", "hdfs://<endereço-do-nome-do-nó>:<porta>") \
     .getOrCreate()
 
 # Definindo esquema para os dados dos alunos
@@ -16,8 +17,12 @@ schema = StructType([
     StructField("Frequencia", IntegerType(), True)
 ])
 
-# Criar um DataFrame vazio
-df_alunos = spark.createDataFrame([], schema)
+# Criar um DataFrame a partir do HDFS ou um DataFrame vazio se o arquivo não existir
+try:
+    df_alunos = spark.read.csv("hdfs://<endereço-do-nome-do-nó>:<porta>/caminho/para/alunos.csv", header=True, schema=schema)
+except Exception as e:
+    print("Arquivo não encontrado no HDFS, criando DataFrame vazio.")
+    df_alunos = spark.createDataFrame([], schema)
 
 class Aluno:
     """Classe para representar um aluno."""
@@ -38,11 +43,14 @@ class Escola:
         self.df_alunos = df_alunos
 
     def adicionar_aluno(self, aluno):
-        """Adiciona um novo aluno ao DataFrame."""
+        """Adiciona um novo aluno ao DataFrame e grava no HDFS."""
         global df_alunos
         novo_aluno = [(aluno.nome, aluno.notas[0], aluno.notas[1], aluno.notas[2], aluno.frequencia)]
         df_novo_aluno = spark.createDataFrame(novo_aluno, schema)
         self.df_alunos = self.df_alunos.union(df_novo_aluno)
+
+        # Grava o DataFrame atualizado no HDFS
+        self.df_alunos.write.mode("overwrite").csv("hdfs://<endereço-do-nome-do-nó>:<porta>/caminho/para/alunos.csv")
         df_alunos = self.df_alunos
 
     def modificar_aluno(self, nome, nota1=None, nota2=None, nota3=None, frequencia=None):
@@ -56,6 +64,9 @@ class Escola:
             self.df_alunos = self.df_alunos.withColumn("Nota3", F.when(cond, nota3).otherwise(self.df_alunos["Nota3"]))
         if frequencia is not None:
             self.df_alunos = self.df_alunos.withColumn("Frequencia", F.when(cond, frequencia).otherwise(self.df_alunos["Frequencia"]))
+
+        # Grava o DataFrame atualizado no HDFS
+        self.df_alunos.write.mode("overwrite").csv("hdfs://<endereço-do-nome-do-nó>:<porta>/caminho/para/alunos.csv")
 
     def listar_alunos(self):
         """Lista todos os alunos com suas informações."""
@@ -170,5 +181,3 @@ if __name__ == "__main__":
 
 # Parar a sessão Spark
 spark.stop()
-
-
