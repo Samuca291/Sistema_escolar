@@ -170,6 +170,5 @@ if __name__ == "__main__":
 
 # Parar a sessão Spark
 spark.stop()
-git config --global user.name Samuca291
-git config --global user.email toledosamuel400@gmail.com
+
 
